@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
 import copy
+import matplotlib.pyplot as plt
 
 def psnr(img1, img2):
     """
@@ -20,6 +21,8 @@ def entropy(array):
     Computes entropy.
     """
     len_arr = array.shape[0]
+    # ensure int arr
+    array = np.array(array).astype(int)
 
     counts = np.bincount(array)
     probs = counts / len_arr
@@ -64,6 +67,10 @@ class jpeg():
         self.DCT_after_full_quantization = self.full_dequantization(self.full_quantization(self.img_DCT, self.quantization_matrix, N), self.quantization_matrix, N)
         self.img_after_ok_compression = self.do_full_rev_DCT_transform(self.DCT_after_full_quantization, N)
 
+
+        self.get_PSNR_percentage_graph(1)
+        self.get_entropy_percentage_graph(1)
+        self.get_PSNR_entropy_graph(1)
 
     def get_quantization_matrix(self, percentage):
         """
@@ -290,6 +297,86 @@ class jpeg():
                 img_DCT_after_compress[i:i+N,j:j+N] = self.small_dequantization(img_DCT_after_compress[i:i+N,j:j+N], quantization_matrix)
 
         return img_DCT_after_compress
+
+    def get_PSNR_entropy_graph(self, step):
+        """
+        plot entropy/PSNR graph
+        :param step (int): plot step
+        :return: None
+        """
+
+        fig = plt.figure()
+        plt.title("entropy/PSNR")
+        ax1 = fig.add_subplot(1, 1, 1)
+        ax1.set_ylabel('entropy')
+        ax1.set_xlabel('PSNR')
+
+        plt.plot(self.PSNR, self.entropy_list[:, 0], label="Y entropy")
+        plt.plot(self.PSNR, self.entropy_list[:, 1], label="Cb entropy")
+        plt.plot(self.PSNR, self.entropy_list[:, 2], label="Cr entropy")
+
+        plt.legend(loc='upper right', borderaxespad=0.)
+        plt.savefig("entropy-PSNR.jpg")
+        plt.show()
+
+
+    def get_entropy_percentage_graph(self, step):
+        """
+        plot percentage/entropy graph
+        :param step (int): plot step
+        :return: None
+        """
+        entropy_list = []
+        for percentage in range(0, 100, step):
+            quantization_matrix = self.get_quantization_matrix(percentage)
+            DCT_after_full_quantization = self.full_dequantization(self.full_quantization(self.img_DCT, quantization_matrix, self.N), self.quantization_matrix, self.N)
+            img_after_ok_compression = ycbcr2rgb(self.do_full_rev_DCT_transform(DCT_after_full_quantization, self.N) * 255)
+            entropy_jpg = list(map(lambda i: entropy(img_after_ok_compression[:, :, i].reshape(-1)), list(range(3)) ))
+            entropy_list.append(entropy_jpg)
+        entropy_list = np.array(entropy_list)
+
+        fig = plt.figure()
+        plt.title("percentage/entropy")
+        ax1 = fig.add_subplot(1, 1, 1)
+        ax1.set_xlabel('R')
+        ax1.set_ylabel('entropy')
+
+        plt.plot(range(0, 100, step), entropy_list[:, 0], label="R entropy")
+        plt.plot(range(0, 100, step), entropy_list[:, 1], label="G entropy")
+        plt.plot(range(0, 100, step), entropy_list[:, 2], label="B entropy")
+
+        plt.legend(loc='upper right', borderaxespad=0.)
+        plt.savefig("percentage-entropy.jpg")
+        plt.show()
+        self.entropy_list = entropy_list
+
+    def get_PSNR_percentage_graph(self, step):
+        """
+        plot percentage/PSNR graph
+        :param step (int): plot step
+        :return: None
+        """
+        PSNR = []
+        img_DCT = copy.deepcopy(self.img_DCT)
+        ref = ycbcr2rgb(self.img * 255) / 255
+
+        for percentage in range(0, 100, step):
+            quantization_matrix = self.get_quantization_matrix(percentage)
+            DCT_after_full_quantization = self.full_dequantization(self.full_quantization(img_DCT, quantization_matrix, self.N), self.quantization_matrix, self.N)
+            img_after_ok_compression = ycbcr2rgb(self.do_full_rev_DCT_transform(DCT_after_full_quantization, self.N) * 255) / 255
+            PSNR_jpg = psnr(img_after_ok_compression, ref)
+            PSNR.append(PSNR_jpg)
+
+        fig = plt.figure()
+        plt.title("percentage/PSNR")
+        ax1 = fig.add_subplot(1, 1, 1)
+        ax1.set_xlabel('R')
+        ax1.set_ylabel('PSNR')
+        plt.plot(range(0, 100, step), PSNR, label="PSNR")
+        plt.legend(loc='upper right', borderaxespad=0.)
+        plt.savefig("percentage-PSNR.jpg")
+        plt.show()
+        self.PSNR = PSNR
 
     def check_DCT(self):
         cv2.imshow("input", self.img)
