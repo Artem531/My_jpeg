@@ -329,7 +329,7 @@ class jpeg():
         entropy_list = []
         for percentage in range(0, 100, step):
             quantization_matrix = self.get_quantization_matrix(percentage)
-            DCT_after_full_quantization = self.full_dequantization(self.full_quantization(self.img_DCT, quantization_matrix, self.N), self.quantization_matrix, self.N)
+            DCT_after_full_quantization = self.full_dequantization(self.full_quantization(self.img_DCT, quantization_matrix, self.N), quantization_matrix, self.N)
             img_after_ok_compression = ycbcr2rgb(self.do_full_rev_DCT_transform(DCT_after_full_quantization, self.N) * 255)
             entropy_jpg = list(map(lambda i: entropy(img_after_ok_compression[:, :, i].reshape(-1)), list(range(3)) ))
             entropy_list.append(entropy_jpg)
@@ -362,7 +362,7 @@ class jpeg():
 
         for percentage in range(0, 100, step):
             quantization_matrix = self.get_quantization_matrix(percentage)
-            DCT_after_full_quantization = self.full_dequantization(self.full_quantization(img_DCT, quantization_matrix, self.N), self.quantization_matrix, self.N)
+            DCT_after_full_quantization = self.full_dequantization(self.full_quantization(img_DCT, quantization_matrix, self.N), quantization_matrix, self.N)
             img_after_ok_compression = ycbcr2rgb(self.do_full_rev_DCT_transform(DCT_after_full_quantization, self.N) * 255) / 255
             PSNR_jpg = psnr(img_after_ok_compression, ref)
             PSNR.append(PSNR_jpg)
