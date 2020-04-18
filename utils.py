@@ -311,9 +311,9 @@ class jpeg():
         ax1.set_ylabel('entropy')
         ax1.set_xlabel('PSNR')
 
-        plt.plot(self.PSNR, self.entropy_list[:, 0], label="Y entropy")
-        plt.plot(self.PSNR, self.entropy_list[:, 1], label="Cb entropy")
-        plt.plot(self.PSNR, self.entropy_list[:, 2], label="Cr entropy")
+        plt.plot(self.PSNR, self.entropy_list[:, 0], label="R entropy")
+        plt.plot(self.PSNR, self.entropy_list[:, 1], label="G entropy")
+        plt.plot(self.PSNR, self.entropy_list[:, 2], label="B entropy")
 
         plt.legend(loc='upper right', borderaxespad=0.)
         plt.savefig("entropy-PSNR.jpg")
