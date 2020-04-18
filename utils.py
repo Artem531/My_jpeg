@@ -2,6 +2,18 @@ import numpy as np
 import cv2
 import copy
 
+def psnr(img1, img2):
+    """
+    Computes psnr.
+    :param img1: first img
+    :param img2: second img
+    :return: psnr
+    """
+    mse = np.mean( (img1 - img2) ** 2 )
+    if mse == 0:
+        return 100
+    PIXEL_MAX = 255.0
+    return 20 * np.log10(PIXEL_MAX / np.sqrt(mse))
 
 def entropy(array):
     """
@@ -36,7 +48,7 @@ def ycbcr2rgb(im):
     return rgb
 
 class jpeg():
-    def __init__(self, dir, N=8, n=7, percentage=2):
+    def __init__(self, dir, N=8, n=7, percentage=0):
         super(jpeg, self).__init__()
         self.img = self.get_img_matrix(dir)
         self.N = N
@@ -60,17 +72,23 @@ class jpeg():
         :param percentage (int [0, 100]): level of compression
         :return: jpeg quantization matrix
         """
-        quantization_matrix_50 = [
-                                    [16, 11, 10, 16, 24, 40, 51, 61],
-                                    [12, 12, 14, 19, 26, 58, 60, 55],
-                                    [14, 13, 16, 24, 40, 57, 69, 56],
-                                    [14, 17, 22, 29, 51, 87, 80, 62],
-                                    [18, 22, 37, 56, 68, 109, 103, 77],
-                                    [24, 35, 55, 64, 81, 104, 113, 92],
-                                    [49, 64, 78, 87, 103, 121, 120, 101],
-                                    [72, 92, 95, 98, 112, 100, 103, 99],
-                                 ]
-        quantization_matrix_50 = np.array(quantization_matrix_50)
+        # quantization_matrix_50 = [
+        #                             [16, 11, 10, 16, 24, 40, 51, 61],
+        #                             [12, 12, 14, 19, 26, 58, 60, 55],
+        #                             [14, 13, 16, 24, 40, 57, 69, 56],
+        #                             [14, 17, 22, 29, 51, 87, 80, 62],
+        #                             [18, 22, 37, 56, 68, 109, 103, 77],
+        #                             [24, 35, 55, 64, 81, 104, 113, 92],
+        #                             [49, 64, 78, 87, 103, 121, 120, 101],
+        #                             [72, 92, 95, 98, 112, 100, 103, 99],
+        #                          ]
+
+        quantization_matrix_50 = np.zeros((self.N, self.N))
+        for i in range(self.N):
+            for j in range(self.N):
+                quantization_matrix_50[i, j] = (i + j)*percentage + 1
+
+        # quantization_matrix_50 = np.array(quantization_matrix_50)
 
         #print(quantization_matrix_50.shape)
         def clip(quantization_matrix):
@@ -78,8 +96,7 @@ class jpeg():
             quantization_matrix[quantization_matrix < 1] = -1
             return quantization_matrix
 
-        scale = 50 / percentage
-        return clip(quantization_matrix_50 * scale)
+        return clip(quantization_matrix_50)
 
     def get2D_DCT_matrix(self, N):
         """

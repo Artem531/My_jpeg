@@ -1,4 +1,4 @@
-from utils import jpeg, entropy, rgb2ycbcr
+from utils import jpeg, entropy, rgb2ycbcr, psnr
 import cv2
 from skimage.measure import compare_psnr
 
@@ -26,6 +26,6 @@ My_ok_entropy_jpg = list(map(lambda i: entropy(ok_jpg[:, :, i].reshape(-1)), lis
 print("My_simple_entropy_jpg: ", My_simple_entropy_jpg)
 print("My_ok_entropy_jpg: ", My_ok_entropy_jpg)
 
-
-print("psnr", compare_psnr(ref_jpg, ok_jpg, data_range=None))
+#print("psnr", compare_psnr(ref_jpg, ok_jpg, data_range=None))
+print("psnr", psnr(ref_jpg, ok_jpg))
 a.check_DCT()
