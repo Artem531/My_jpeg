@@ -16,6 +16,30 @@ def psnr(img1, img2):
     PIXEL_MAX = 255.0
     return 20 * np.log10(PIXEL_MAX / np.sqrt(mse))
 
+def code_seq(array):
+    """
+    Series Length Coding
+    """
+    prev = array[0]
+    count = 1
+    res = []
+    for i in array[1:]:
+        if count > 15 and prev == 0 and i == prev:
+            res.append([4, i])
+            res.append([4, i])
+            res.append([4, i])
+            res.append([4, i])
+            count = 1
+            continue
+
+        if i == prev:
+            count += 1
+            continue
+        res.append([count, i])
+        prev = i
+        count = 1
+    return res
+
 def entropy(array):
     """
     Computes entropy.
@@ -23,17 +47,15 @@ def entropy(array):
     len_arr = array.shape[0]
     # ensure int arr
     array = np.array(array).astype(int)
+    array = np.array(code_seq(array))
+    unique_rows, counts = np.unique(array, axis=0, return_counts=True)
 
-    counts = np.bincount(array)
-    probs = counts / len_arr
-
-    probs[probs == 0] = 10e-10
+    probs = counts / np.sum(counts)
     entropy = 0.
     for i in probs:
         entropy -= i * np.log2(i)
 
-    return entropy
-
+    return entropy #* len(unique_rows)
 
 def rgb2ycbcr(im):
     xform = np.array([[.299, .587, .114], [-.1687, -.3313, .5], [.5, -.4187, -.0813]])
@@ -311,13 +333,57 @@ class jpeg():
         ax1.set_ylabel('entropy')
         ax1.set_xlabel('PSNR')
 
-        plt.plot(self.PSNR, self.entropy_list[:, 0], label="R entropy")
-        plt.plot(self.PSNR, self.entropy_list[:, 1], label="G entropy")
-        plt.plot(self.PSNR, self.entropy_list[:, 2], label="B entropy")
+        plt.plot(self.PSNR, self.entropy_list[:, 0], label="Y entropy")
+        plt.plot(self.PSNR, self.entropy_list[:, 1], label="Cb entropy")
+        plt.plot(self.PSNR, self.entropy_list[:, 2], label="Cr entropy")
 
         plt.legend(loc='upper right', borderaxespad=0.)
         plt.savefig("entropy-PSNR.jpg")
         plt.show()
+
+
+    def walk(self, matrix):
+        """
+        https://qna.habr.com/q/146043
+        Move all zeros to the end
+        :param DCT (numpy): DCT array
+        :return: DCT 1D-array with all zeros in the end
+        """
+        zigzag = []
+        for index in range(1, len(matrix)):
+            slice = [i[:index] for i in matrix[:index]]
+            diag = [slice[i][len(slice) - i - 1] for i in range(len(slice))]
+            if len(diag) % 2:
+                diag.reverse()
+            zigzag += diag
+        return zigzag
+
+    # def walk(self, matrix):
+    #     """
+    #     https://qna.habr.com/q/146043
+    #     Move all zeros to the end
+    #     :param DCT (numpy): DCT array
+    #     :return: DCT 1D-array with all zeros in the end
+    #     """
+    #     return list(matrix.reshape(-1))
+
+    def full_walk(self, img_DCT, N):
+        """
+        Move all zeros to the end for all img
+        :param DCT (numpy): DCT array
+        :return: DCT 1D-array with all zeros in the end
+        """
+        img_DCT_after_zig_zag = copy.deepcopy(img_DCT)
+        res = []
+        h, w = img_DCT.shape[0], img_DCT.shape[1]
+        for i in range(int(h / N)):
+            i = i * N
+            for j in range(int(w / N)):
+                j = j * N
+
+                res += self.walk(img_DCT_after_zig_zag[i:i+N,j:j+N])
+
+        return res
 
 
     def get_entropy_percentage_graph(self, step):
@@ -329,9 +395,11 @@ class jpeg():
         entropy_list = []
         for percentage in range(0, 100, step):
             quantization_matrix = self.get_quantization_matrix(percentage)
-            DCT_after_full_quantization = self.full_dequantization(self.full_quantization(self.img_DCT, quantization_matrix, self.N), quantization_matrix, self.N)
-            img_after_ok_compression = ycbcr2rgb(self.do_full_rev_DCT_transform(DCT_after_full_quantization, self.N) * 255)
-            entropy_jpg = list(map(lambda i: entropy(img_after_ok_compression[:, :, i].reshape(-1)), list(range(3)) ))
+            DCT_after_full_quantization = self.full_quantization(self.img_DCT, quantization_matrix, self.N)
+            DCT_after_zig_zag = list(map(lambda i: self.full_walk(DCT_after_full_quantization[:, :, i], self.N), list(range(3)) ))
+            DCT_after_zig_zag = np.array(DCT_after_zig_zag) * 255
+            #img_after_ok_compression = ycbcr2rgb(self.do_full_rev_DCT_transform(DCT_after_full_quantization, self.N) * 255)
+            entropy_jpg = list(map(lambda i: entropy(DCT_after_zig_zag[i]), list(range(3)) ))
             entropy_list.append(entropy_jpg)
         entropy_list = np.array(entropy_list)
 
@@ -341,9 +409,9 @@ class jpeg():
         ax1.set_xlabel('R')
         ax1.set_ylabel('entropy')
 
-        plt.plot(range(0, 100, step), entropy_list[:, 0], label="R entropy")
-        plt.plot(range(0, 100, step), entropy_list[:, 1], label="G entropy")
-        plt.plot(range(0, 100, step), entropy_list[:, 2], label="B entropy")
+        plt.plot(range(0, 100, step), entropy_list[:, 0], label="Y entropy")
+        plt.plot(range(0, 100, step), entropy_list[:, 1], label="Cb entropy")
+        plt.plot(range(0, 100, step), entropy_list[:, 2], label="Cr entropy")
 
         plt.legend(loc='upper right', borderaxespad=0.)
         plt.savefig("percentage-entropy.jpg")
@@ -358,12 +426,12 @@ class jpeg():
         """
         PSNR = []
         img_DCT = copy.deepcopy(self.img_DCT)
-        ref = ycbcr2rgb(self.img * 255) / 255
+        ref = ycbcr2rgb(self.img * 255)
 
         for percentage in range(0, 100, step):
             quantization_matrix = self.get_quantization_matrix(percentage)
-            DCT_after_full_quantization = self.full_dequantization(self.full_quantization(img_DCT, quantization_matrix, self.N), quantization_matrix, self.N)
-            img_after_ok_compression = ycbcr2rgb(self.do_full_rev_DCT_transform(DCT_after_full_quantization, self.N) * 255) / 255
+            DCT_after_full_quantization = self.full_dequantization( self.full_quantization(img_DCT, quantization_matrix, self.N) , quantization_matrix, self.N)
+            img_after_ok_compression = ycbcr2rgb(self.do_full_rev_DCT_transform(DCT_after_full_quantization, self.N) * 255)
             PSNR_jpg = psnr(img_after_ok_compression, ref)
             PSNR.append(PSNR_jpg)
 
